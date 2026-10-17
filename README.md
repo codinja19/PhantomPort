@@ -25,57 +25,51 @@ By offloading anomaly detection to an external watchdog agent via UART/SPI telem
 ## ⚙️ System Architecture
 
 ```mermaid
-graph TD
-    subgraph TIER1["Tier 1: Edge Hardware (ESP32)"]
-        direction TB
-        subgraph CORES["Dual-Core Execution"]
-            C1["Core 1: Physical Actuation<br/>(Sensor / Relay Loop)"]
-            C0["Core 0: Network & Telemetry<br/>(Wi-Fi / Sockets / JSON Stream)"]
-        end
-        subgraph FLASH["Dual-Bank Flash Memory"]
-            OTA0[("ota_0: Golden Image<br/>(Verified Base)")]
-            OTA1[("ota_1: Active Runtime<br/>(Current Execution)")]
-        end
+flowchart TD
+    subgraph T1["Tier 1: Edge Hardware Node - ESP32"]
+        C1["Core 1: Physical Actuation & Sensor Loop"]
+        C0["Core 0: Wi-Fi Stack & UART Telemetry"]
+        OTA0["ota_0 Partition: Verified Golden Firmware"]
+        OTA1["ota_1 Partition: Active Runtime Firmware"]
     end
 
-    subgraph TIER2["Tier 2: PhantomPort Sentinel Agent (Sidecar)"]
-        direction TB
-        PARSE["1. Dynamic Telemetry Ingestion<br/>(Heap / Sockets / GPIO)"]
-        ISO["2. Isolation Forest Filter<br/>(Statistical Anomaly Scoring)"]
-        LG["3. LangGraph Reasoning Engine<br/>(Contextual Exploit Verification)"]
-        TRIGGER{"Autonomous Policy Trigger"}
-        
-        PARSE --> ISO --> LG --> TRIGGER
-        TRIGGER -->|Sever Network| CMD1["esp_wifi_stop()<br/>(Air-Gaps External Port)"]
-        TRIGGER -->|Rollback Bootloader| CMD2["esp_ota_mark_app_invalid...<br/>(Revert Boot Pointer to ota_0)"]
+    subgraph T2["Tier 2: PhantomPort Sidecar Agent"]
+        PARSE["1. UART Telemetry Collector"]
+        ISO["2. Isolation Forest Anomaly Filter"]
+        LG["3. LangGraph Contextual Security Agent"]
+        DECISION{"Threat Confirmed?"}
+        CMD_WIFI["Action 1: Sever Network Interface"]
+        CMD_OTA["Action 2: Trigger Bootloader Rollback"]
+
+        PARSE --> ISO --> LG --> DECISION
+        DECISION -- "Yes: Quarantine" --> CMD_WIFI
+        DECISION -- "Yes: Self-Heal" --> CMD_OTA
     end
 
-    subgraph TIER3["Tier 3: Cloud SOC & Forensics"]
-        direction TB
-        FIREBASE[("Firebase Firestore<br/>(Real-Time State Sync)")]
-        DASH["React + Tailwind Dashboard<br/>(Live Operator Command Center)"]
-        REPORT["Automated Incident Exporter<br/>(Forensic Log & CVE Diffs)"]
-        FIREBASE --> DASH
-        FIREBASE --> REPORT
+    subgraph T3["Tier 3: Cloud SOC & Forensics"]
+        FB["Firebase Firestore Real-Time DB"]
+        UI["React + Tailwind Live SOC Dashboard"]
+        PDF["Automated CVE & Incident Report"]
+
+        FB --> UI
+        FB --> PDF
     end
 
-    %% Data Flow Connections
-    C0 -->|UART Stream (200ms)| PARSE
-    CMD1 -.->|Hardware Interrupt| C0
-    CMD2 -.->|Flash Pointer Revert| OTA0
-    OTA1 -.->|Active Image Invalidated| CMD2
-    LG -->|Real-Time Telemetry & State| FIREBASE
-
-    %% Styling
-    classDef default fill:#1e293b,stroke:#475569,stroke-width:1px,color:#f8fafc;
-    classDef highlight fill:#0f172a,stroke:#06b6d4,stroke-width:2px,color:#38bdf8;
-    classDef alert fill:#450a0a,stroke:#ef4444,stroke-width:1.5px,color:#fca5a5;
-    classDef success fill:#064e3b,stroke:#10b981,stroke-width:1.5px,color:#6ee7b7;
-
-    class TIER1,TIER2,TIER3 highlight;
-    class CMD1,CMD2 alert;
-    class OTA0 success;
+    C0 -- "JSON Heartbeat Every 200ms" --> PARSE
+    CMD_WIFI -. "Hardware Interrupt: esp_wifi_stop" .-> C0
+    CMD_OTA -. "Revert Boot Pointer to ota_0" .-> OTA0
+    OTA1 -. "Mark Partition Invalid" .-> CMD_OTA
+    LG -- "Sync Live State & Alerts" --> FB
 ```
+
+### Architectural Breakdown by Tier
+| Architectural Tier | Core Components | Operational Role |
+| :--- | :--- | :--- |
+| **Tier 1: Edge Hardware (ESP32)** | Dual-Core MCU, Custom A/B Flash Table (`ota_0`, `ota_1`), Local Relay/Sensor Loop | Runs critical physical actuation on Core 1 while streaming lightweight runtime telemetry from Core 0 over UART. |
+| **Tier 2: Sidecar Sentinel Agent** | Python FastAPI, Scikit-Learn Isolation Forest, LangGraph State Machine | Evaluates telemetry drift in real time; fires hardware interrupts to sever Wi-Fi and trigger bootloader recovery upon breach detection. |
+| **Tier 3: Cloud SOC Command Center** | Firebase Firestore, React (Vite), Tailwind CSS | Visualizes live device quarantine states, memory heap graphs, and generates automated post-rollback forensic reports. |
+
+---
 
 ## 🔄 4-Stage Operational Lifecycle
 
@@ -88,19 +82,31 @@ graph TD
      "cpu_load": 14.2,
      "gpio_state": 4
    }
+   ```
+2. **Dual-Stage Behavioral Reasoning (Cognition):**
+   * **Fast Filter:** A lightweight Isolation Forest flags sudden heap fragmentation drops and socket anomalies.
+   * **Agent Evaluation:** LangGraph cross-references device identity and active network destinations. If an anomalous shell spawn or outbound exfiltration pattern is identified, it initiates the quarantine workflow.
+3. **Dynamic Air-Gapping (Quarantine):** The agent signals an immediate network isolation interrupt (`esp_wifi_stop()`). The device cuts all inbound/outbound wireless communication while the local sensor/actuator tasks on Core 1 continue running uninterrupted.
+4. **Autonomous Dual-Partition Rollback (Self-Healing):** The agent dispatches a hardware bootloader directive. Using `esp_ota_mark_app_invalid_rollback_and_reboot()`, the ESP32 invalidates the compromised partition (`ota_1`), reverts boot pointers to the verified Golden Image (`ota_0`), and boots into a clean state in ~1.8 seconds.
 
-  Dual-Stage Behavioral Reasoning (Cognition):
+---
 
-Fast Filter: A lightweight Isolation Forest flags sudden heap fragmentation drops and socket anomalies.
+## 🛠️ Technology Stack
 
-Agent Evaluation: LangGraph cross-references device identity and active network destinations. If an anomalous shell spawn or outbound exfiltration pattern is identified, it initiates the quarantine workflow.
+| Domain | Technology | Purpose |
+| :--- | :--- | :--- |
+| **Embedded Hardware** | ESP32 Dual-Core MCU (NodeMCU-32S) | Edge physical computing & sensor/relay actuation |
+| **Firmware Framework** | C/C++ (ESP-IDF / Arduino Core) | Dual A/B partition management & hardware interrupts |
+| **Sidecar Agent** | Python 3.11+, LangGraph, FastAPI | Autonomous state-machine & reasoning engine |
+| **Anomaly Detection** | Scikit-Learn (Isolation Forest) | Statistical deviation scoring on runtime telemetry |
+| **Real-Time Database**| Google Firebase Firestore | Zero-latency device state synchronization |
+| **SOC Dashboard** | React (Vite), Tailwind CSS | Live operator telemetry graph & incident reports |
 
-Dynamic Air-Gapping (Quarantine): The agent signals an immediate network isolation interrupt (esp_wifi_stop()). The device cuts all inbound/outbound wireless communication while the local sensor/actuator tasks on Core 1 continue running uninterrupted.
+---
 
-Autonomous Dual-Partition Rollback (Self-Healing): The agent dispatches a hardware bootloader directive. Using esp_ota_mark_app_invalid_rollback_and_reboot(), the ESP32 invalidates the compromised partition (ota_1), reverts boot pointers to the verified Golden Image (ota_0), and boots into clean state in ~1.8 seconds.
+## 📂 Repository Structure
 
-📂 Repository Structure
-
+```text
 PhantomPort/
 ├── firmware/
 │   ├── partitions.csv               # Custom A/B partition table (otadata, ota_0, ota_1)
@@ -119,3 +125,23 @@ PhantomPort/
 │   └── hackathon_pitch_deck.pdf     # Project presentation deck
 ├── LICENSE
 └── README.md
+```
+
+---
+
+## ⚡ Live Hackathon Demo Proof-of-Concept
+
+* **Stage 1 (Normal Operations):** ESP32 executes `v1.0 Golden Firmware` (`ota_0`), managing a physical relay circuit while streaming nominal telemetry to the React dashboard.
+* **Stage 2 (Exploit Injection):** An OTA flash update introduces `v1.1 Active Firmware` (`ota_1`) containing an obfuscated socket routine that initiates unauthorized outbound data transmissions.
+* **Stage 3 (Automated Mitigation):** The sidecar agent catches the anomalous socket burst and memory drop, executes an immediate Wi-Fi shutdown, verifies relay continuity, executes an autonomous firmware rollback to `ota_0`, and populates an incident log in under 2 seconds.
+
+---
+
+## 👥 Engineering Team
+* **Garv Goel** - *Embedded Systems & Agentic Architecture*
+* **[Member 2 Name]** - *AI & Anomaly Detection Modeling*
+* **[Member 3 Name]** - *Backend & Cloud Systems Lead*
+* **[Member 4 Name]** - *Frontend & SOC Dashboard Engineering*
+
+---
+*Developed for the Agentic AI Hackathon 2026.*
