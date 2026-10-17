@@ -1,4 +1,4 @@
-# PhantomPort 🛡️⚡
+# PhantomPort 🛡️
 > **Autonomous Edge-IoT Hardware Quarantine & Self-Healing Firmware Sentinel**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -138,10 +138,8 @@ PhantomPort/
 ---
 
 ## 👥 Engineering Team
-* **Garv Goel** - *Embedded Systems & Agentic Architecture*
-* **[Member 2 Name]** - *AI & Anomaly Detection Modeling*
-* **[Member 3 Name]** - *Backend & Cloud Systems Lead*
-* **[Member 4 Name]** - *Frontend & SOC Dashboard Engineering*
+* **Garv Goel** - *Embedded Systems & Agentic Architecture*AI & Anomaly Detection Modeling*
+* **C M Keerthana** - *Backend & Cloud Systems Lead Frontend & SOC Dashboard Engineering*
 
 ---
 *Developed for the Agentic AI Hackathon 2026.*
