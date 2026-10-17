@@ -24,42 +24,58 @@ By offloading anomaly detection to an external watchdog agent via UART/SPI telem
 
 ## ⚙️ System Architecture
 
-+-----------------------------------------------------------------------------------+
-|                            TIER 1: EDGE HARDWARE (ESP32)                          |
-|  +-------------------------------------+  +------------------------------------+  |
-|  |     Core 1: Physical Actuation      |  |      Core 0: Network & Telemetry   |  |
-|  |   (Local Sensor / Relay Control)    |  |     (Wi-Fi / Sockets / JSON Push)  |  |
-|  +-------------------------------------+  +------------------------------------+  |
-|                        |                                     |                    |
-|                        +------------------+------------------+                    |
-|                                           |                                       |
-|                                   [Dual-OTA Flash]                                |
-|                        [ota_0: Golden] <--- [ota_1: Active]                       |
-+-------------------------------------------|---------------------------------------+
-| UART Telemetry Stream (200ms)
-v
-+-----------------------------------------------------------------------------------+
-|                        TIER 2: PHANTOM PORT AGENT (SIDECAR)                       |
-|  +-------------------------+     +--------------------+     +------------------+  |
-|  | Dynamic Telemetry Parse | --> |  Isolation Forest  | --> |    LangGraph     |  |
-|  | (Heap / Sockets / GPIO) |     |  (Statistical Anom)|     | (Context Reason) |  |
-|  +-------------------------+     +--------------------+     +------------------+  |
-|                                                                       |           |
-|                                [Autonomous Execution Trigger] <-------+           |
-|                                           |                                       |
-|                    +----------------------+----------------------+                |
-|                    v                                             v                |
-|     [Command 1: esp_wifi_stop()]              [Command 2: Hardware Rollback]      |
-|    (Air-Gaps External Interface)             (Bootloader Points to ota_0)         |
-+------------------------------------------------------------------|----------------+
-| Cloud Sync
-v
-+-----------------------------------------------------------------------------------+
-|                         TIER 3: CLOUD SOC & FORENSICS                             |
-|  • Firebase Firestore (Real-Time State Sync)                                      |
-|  • React + Tailwind Security Operations Dashboard                                 |
-|  • Automated Incident & Memory Heap Forensic Log Exporters                       |
-+-----------------------------------------------------------------------------------+
+```mermaid
+graph TD
+    subgraph TIER1["Tier 1: Edge Hardware (ESP32)"]
+        direction TB
+        subgraph CORES["Dual-Core Execution"]
+            C1["Core 1: Physical Actuation<br/>(Sensor / Relay Loop)"]
+            C0["Core 0: Network & Telemetry<br/>(Wi-Fi / Sockets / JSON Stream)"]
+        end
+        subgraph FLASH["Dual-Bank Flash Memory"]
+            OTA0[("ota_0: Golden Image<br/>(Verified Base)")]
+            OTA1[("ota_1: Active Runtime<br/>(Current Execution)")]
+        end
+    end
+
+    subgraph TIER2["Tier 2: PhantomPort Sentinel Agent (Sidecar)"]
+        direction TB
+        PARSE["1. Dynamic Telemetry Ingestion<br/>(Heap / Sockets / GPIO)"]
+        ISO["2. Isolation Forest Filter<br/>(Statistical Anomaly Scoring)"]
+        LG["3. LangGraph Reasoning Engine<br/>(Contextual Exploit Verification)"]
+        TRIGGER{"Autonomous Policy Trigger"}
+        
+        PARSE --> ISO --> LG --> TRIGGER
+        TRIGGER -->|Sever Network| CMD1["esp_wifi_stop()<br/>(Air-Gaps External Port)"]
+        TRIGGER -->|Rollback Bootloader| CMD2["esp_ota_mark_app_invalid...<br/>(Revert Boot Pointer to ota_0)"]
+    end
+
+    subgraph TIER3["Tier 3: Cloud SOC & Forensics"]
+        direction TB
+        FIREBASE[("Firebase Firestore<br/>(Real-Time State Sync)")]
+        DASH["React + Tailwind Dashboard<br/>(Live Operator Command Center)"]
+        REPORT["Automated Incident Exporter<br/>(Forensic Log & CVE Diffs)"]
+        FIREBASE --> DASH
+        FIREBASE --> REPORT
+    end
+
+    %% Data Flow Connections
+    C0 -->|UART Stream (200ms)| PARSE
+    CMD1 -.->|Hardware Interrupt| C0
+    CMD2 -.->|Flash Pointer Revert| OTA0
+    OTA1 -.->|Active Image Invalidated| CMD2
+    LG -->|Real-Time Telemetry & State| FIREBASE
+
+    %% Styling
+    classDef default fill:#1e293b,stroke:#475569,stroke-width:1px,color:#f8fafc;
+    classDef highlight fill:#0f172a,stroke:#06b6d4,stroke-width:2px,color:#38bdf8;
+    classDef alert fill:#450a0a,stroke:#ef4444,stroke-width:1.5px,color:#fca5a5;
+    classDef success fill:#064e3b,stroke:#10b981,stroke-width:1.5px,color:#6ee7b7;
+
+    class TIER1,TIER2,TIER3 highlight;
+    class CMD1,CMD2 alert;
+    class OTA0 success;
+```
 
 ## 🔄 4-Stage Operational Lifecycle
 
